@@ -1,0 +1,8 @@
+node_modules/
+.next/
+backend/.venv/
+backend/flog.db
+.env
+.env.local
+*.pyc
+__pycache__/
