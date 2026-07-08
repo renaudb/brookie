@@ -1,4 +1,4 @@
-.PHONY: run run-backend run-frontend test
+.PHONY: run run-backend run-frontend test migrate migration
 
 run:
 	@trap 'kill 0' EXIT INT TERM; \
@@ -14,3 +14,9 @@ run-frontend:
 
 test:
 	uv run pytest
+
+migrate:
+	uv run alembic upgrade head
+
+migration:
+	uv run alembic revision --autogenerate --rev-id "$(id)" -m "$(name)"
