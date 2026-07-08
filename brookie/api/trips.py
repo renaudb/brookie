@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as DbSession
 
 from brookie.commands import trips as trip_commands
-from brookie.commands.trips import SessionNotFoundError
+from brookie.commands.trips import IncompleteCoordinatesError, SessionNotFoundError
 from brookie.db import get_db
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -23,10 +23,6 @@ class TripBase(BaseModel):
 
 class TripCreate(TripBase):
     session_id: UUID
-
-
-class TripCreateNested(TripBase):
-    pass
 
 
 class TripUpdate(BaseModel):
@@ -60,6 +56,8 @@ def create_trip(payload: TripCreate, db: DbSession = Depends(get_db)) -> TripRea
         )
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IncompleteCoordinatesError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TripRead.model_validate(trip)
 
 
@@ -83,16 +81,19 @@ def get_trip(trip_id: UUID, db: DbSession = Depends(get_db)) -> TripRead:
 def update_trip(
     trip_id: UUID, payload: TripUpdate, db: DbSession = Depends(get_db)
 ) -> TripRead:
-    trip = trip_commands.update_trip(
-        db,
-        trip_id,
-        start_time=payload.start_time,
-        end_time=payload.end_time,
-        location=payload.location,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        notes=payload.notes,
-    )
+    try:
+        trip = trip_commands.update_trip(
+            db,
+            trip_id,
+            start_time=payload.start_time,
+            end_time=payload.end_time,
+            location=payload.location,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            notes=payload.notes,
+        )
+    except IncompleteCoordinatesError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
     return TripRead.model_validate(trip)

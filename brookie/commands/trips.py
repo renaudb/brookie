@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -16,14 +15,14 @@ class SessionNotFoundError(Exception):
         super().__init__(f"Session {session_id} not found")
 
 
-@dataclass
-class TripInput:
-    start_time: datetime
-    end_time: datetime
-    location: str
-    latitude: float | None = None
-    longitude: float | None = None
-    notes: str | None = None
+class IncompleteCoordinatesError(Exception):
+    def __init__(self) -> None:
+        super().__init__("latitude and longitude must both be set or both be null")
+
+
+def check_coordinates(latitude: float | None, longitude: float | None) -> None:
+    if (latitude is None) != (longitude is None):
+        raise IncompleteCoordinatesError()
 
 
 def create_trip(
@@ -40,6 +39,7 @@ def create_trip(
     session = db.get(Session, session_id)
     if session is None:
         raise SessionNotFoundError(session_id)
+    check_coordinates(latitude, longitude)
 
     trip = Trip(
         session_id=session_id,
@@ -81,6 +81,10 @@ def update_trip(
     trip = db.get(Trip, trip_id)
     if trip is None:
         return None
+
+    final_latitude = latitude if latitude is not None else trip.latitude
+    final_longitude = longitude if longitude is not None else trip.longitude
+    check_coordinates(final_latitude, final_longitude)
 
     if start_time is not None:
         trip.start_time = start_time

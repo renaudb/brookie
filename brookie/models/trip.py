@@ -1,10 +1,9 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
-from uuid import UUID
+from uuid import UUID, uuid7
 
 from sqlalchemy import DateTime, Float, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from uuid6 import uuid7
 
 from brookie.models.base import Base
 

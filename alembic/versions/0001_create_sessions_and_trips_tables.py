@@ -1,8 +1,8 @@
 """create sessions and trips tables
 
-Revision ID: b1bdb6939b24
+Revision ID: 0001
 Revises:
-Create Date: 2026-07-08 12:34:11.735785
+Create Date: 2026-07-08 12:50:41.595660
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "b1bdb6939b24"
+revision: str = "0001"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

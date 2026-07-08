@@ -39,32 +39,17 @@ def test_create_session_with_latitude_longitude_notes(client: TestClient) -> Non
     assert body["notes"] == "Sunny day"
 
 
-def test_create_session_with_nested_trips(client: TestClient) -> None:
+def test_create_session_rejects_partial_coordinates(client: TestClient) -> None:
     response = client.post(
         "/sessions",
         json={
             "start_time": "2024-01-01T08:00:00+00:00",
-            "end_time": "2024-01-01T10:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
             "location": "Trailhead",
-            "trips": [
-                {
-                    "start_time": "2024-01-01T08:00:00+00:00",
-                    "end_time": "2024-01-01T09:00:00+00:00",
-                    "location": "Leg 1",
-                },
-                {
-                    "start_time": "2024-01-01T09:00:00+00:00",
-                    "end_time": "2024-01-01T10:00:00+00:00",
-                    "location": "Leg 2",
-                },
-            ],
+            "latitude": 45.5,
         },
     )
-    assert response.status_code == 201
-    body = response.json()
-    assert len(body["trips"]) == 2
-    assert {trip["location"] for trip in body["trips"]} == {"Leg 1", "Leg 2"}
-    assert all(trip["session_id"] == body["id"] for trip in body["trips"])
+    assert response.status_code == 422
 
 
 def test_list_sessions(client: TestClient) -> None:
@@ -102,6 +87,20 @@ def test_update_session(client: TestClient) -> None:
     assert response.json()["start_time"] == created["start_time"]
 
 
+def test_update_session_rejects_partial_coordinates(client: TestClient) -> None:
+    created = client.post(
+        "/sessions",
+        json={
+            "start_time": "2024-01-01T08:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
+            "location": "Trailhead",
+        },
+    ).json()
+
+    response = client.patch(f"/sessions/{created['id']}", json={"longitude": -73.6})
+    assert response.status_code == 422
+
+
 def test_delete_session_cascades_trips(client: TestClient) -> None:
     created = client.post(
         "/sessions",
@@ -109,19 +108,20 @@ def test_delete_session_cascades_trips(client: TestClient) -> None:
             "start_time": "2024-01-01T08:00:00+00:00",
             "end_time": "2024-01-01T10:00:00+00:00",
             "location": "Trailhead",
-            "trips": [
-                {
-                    "start_time": "2024-01-01T08:00:00+00:00",
-                    "end_time": "2024-01-01T09:00:00+00:00",
-                    "location": "Leg 1",
-                }
-            ],
         },
     ).json()
-    trip_id = created["trips"][0]["id"]
+    trip = client.post(
+        "/trips",
+        json={
+            "session_id": created["id"],
+            "start_time": "2024-01-01T08:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
+            "location": "Leg 1",
+        },
+    ).json()
 
     delete_response = client.delete(f"/sessions/{created['id']}")
     assert delete_response.status_code == 204
 
     assert client.get(f"/sessions/{created['id']}").status_code == 404
-    assert client.get(f"/trips/{trip_id}").status_code == 404
+    assert client.get(f"/trips/{trip['id']}").status_code == 404

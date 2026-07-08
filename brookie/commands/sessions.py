@@ -5,9 +5,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from brookie.commands.trips import TripInput
+from brookie.commands.trips import check_coordinates
 from brookie.models.session import Session
-from brookie.models.trip import Trip
 
 
 def create_session(
@@ -19,8 +18,9 @@ def create_session(
     latitude: float | None = None,
     longitude: float | None = None,
     notes: str | None = None,
-    trips: list[TripInput] | None = None,
 ) -> Session:
+    check_coordinates(latitude, longitude)
+
     session = Session(
         start_time=start_time,
         end_time=end_time,
@@ -29,19 +29,6 @@ def create_session(
         longitude=longitude,
         notes=notes,
     )
-    if trips:
-        session.trips = [
-            Trip(
-                start_time=t.start_time,
-                end_time=t.end_time,
-                location=t.location,
-                latitude=t.latitude,
-                longitude=t.longitude,
-                notes=t.notes,
-            )
-            for t in trips
-        ]
-
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -70,6 +57,10 @@ def update_session(
     session = db.get(Session, session_id)
     if session is None:
         return None
+
+    final_latitude = latitude if latitude is not None else session.latitude
+    final_longitude = longitude if longitude is not None else session.longitude
+    check_coordinates(final_latitude, final_longitude)
 
     if start_time is not None:
         session.start_time = start_time

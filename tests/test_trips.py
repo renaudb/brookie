@@ -102,6 +102,38 @@ def test_update_trip(client: TestClient) -> None:
     assert response.json()["location"] == "Updated leg"
 
 
+def test_create_trip_rejects_partial_coordinates(client: TestClient) -> None:
+    session_id = _create_session(client)
+
+    response = client.post(
+        "/trips",
+        json={
+            "session_id": session_id,
+            "start_time": "2024-01-01T08:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
+            "location": "Leg 1",
+            "longitude": -73.6,
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_update_trip_rejects_partial_coordinates(client: TestClient) -> None:
+    session_id = _create_session(client)
+    trip = client.post(
+        "/trips",
+        json={
+            "session_id": session_id,
+            "start_time": "2024-01-01T08:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
+            "location": "Leg 1",
+        },
+    ).json()
+
+    response = client.patch(f"/trips/{trip['id']}", json={"latitude": 45.5})
+    assert response.status_code == 422
+
+
 def test_update_trip_latitude_longitude_notes(client: TestClient) -> None:
     session_id = _create_session(client)
     trip = client.post(

@@ -19,4 +19,4 @@ migrate:
 	uv run alembic upgrade head
 
 migration:
-	uv run alembic revision --autogenerate -m "$(name)"
+	uv run alembic revision --autogenerate --rev-id "$(id)" -m "$(name)"

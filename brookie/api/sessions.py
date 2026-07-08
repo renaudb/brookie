@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as DbSession
 
-from brookie.api.trips import TripCreateNested, TripRead
+from brookie.api.trips import TripRead
 from brookie.commands import sessions as session_commands
-from brookie.commands.trips import TripInput
+from brookie.commands.trips import IncompleteCoordinatesError
 from brookie.db import get_db
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -20,10 +20,6 @@ class SessionBase(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     notes: str | None = None
-
-
-class SessionCreate(SessionBase):
-    trips: list[TripCreateNested] = []
 
 
 class SessionUpdate(BaseModel):
@@ -44,29 +40,20 @@ class SessionRead(SessionBase):
 
 @router.post("", status_code=201)
 def create_session(
-    payload: SessionCreate, db: DbSession = Depends(get_db)
+    payload: SessionBase, db: DbSession = Depends(get_db)
 ) -> SessionRead:
-    trip_inputs = [
-        TripInput(
-            start_time=t.start_time,
-            end_time=t.end_time,
-            location=t.location,
-            latitude=t.latitude,
-            longitude=t.longitude,
-            notes=t.notes,
+    try:
+        session = session_commands.create_session(
+            db,
+            start_time=payload.start_time,
+            end_time=payload.end_time,
+            location=payload.location,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            notes=payload.notes,
         )
-        for t in payload.trips
-    ]
-    session = session_commands.create_session(
-        db,
-        start_time=payload.start_time,
-        end_time=payload.end_time,
-        location=payload.location,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        notes=payload.notes,
-        trips=trip_inputs,
-    )
+    except IncompleteCoordinatesError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SessionRead.model_validate(session)
 
 
@@ -88,16 +75,19 @@ def get_session(session_id: UUID, db: DbSession = Depends(get_db)) -> SessionRea
 def update_session(
     session_id: UUID, payload: SessionUpdate, db: DbSession = Depends(get_db)
 ) -> SessionRead:
-    session = session_commands.update_session(
-        db,
-        session_id,
-        start_time=payload.start_time,
-        end_time=payload.end_time,
-        location=payload.location,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        notes=payload.notes,
-    )
+    try:
+        session = session_commands.update_session(
+            db,
+            session_id,
+            start_time=payload.start_time,
+            end_time=payload.end_time,
+            location=payload.location,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            notes=payload.notes,
+        )
+    except IncompleteCoordinatesError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return SessionRead.model_validate(session)
