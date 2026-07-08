@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from brookie.commands.trips import check_coordinates
+from brookie.commands.utils import check_coordinates
 from brookie.models.session import Session
 
 

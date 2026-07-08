@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from brookie.api.trips import TripRead
 from brookie.commands import sessions as session_commands
-from brookie.commands.trips import IncompleteCoordinatesError
+from brookie.commands.utils import IncompleteCoordinatesError
 from brookie.db import get_db
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])

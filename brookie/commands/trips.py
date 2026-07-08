@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from brookie.commands.utils import check_coordinates
 from brookie.models.session import Session
 from brookie.models.trip import Trip
 
@@ -13,16 +14,6 @@ class SessionNotFoundError(Exception):
     def __init__(self, session_id: UUID) -> None:
         self.session_id = session_id
         super().__init__(f"Session {session_id} not found")
-
-
-class IncompleteCoordinatesError(Exception):
-    def __init__(self) -> None:
-        super().__init__("latitude and longitude must both be set or both be null")
-
-
-def check_coordinates(latitude: float | None, longitude: float | None) -> None:
-    if (latitude is None) != (longitude is None):
-        raise IncompleteCoordinatesError()
 
 
 def create_trip(

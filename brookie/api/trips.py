@@ -6,7 +6,8 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as DbSession
 
 from brookie.commands import trips as trip_commands
-from brookie.commands.trips import IncompleteCoordinatesError, SessionNotFoundError
+from brookie.commands.trips import SessionNotFoundError
+from brookie.commands.utils import IncompleteCoordinatesError
 from brookie.db import get_db
 
 router = APIRouter(prefix="/trips", tags=["trips"])
