@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -15,10 +16,13 @@ class TripBase(BaseModel):
     start_time: datetime
     end_time: datetime
     location: str
+    latitude: float | None = None
+    longitude: float | None = None
+    notes: str | None = None
 
 
 class TripCreate(TripBase):
-    session_id: int
+    session_id: UUID
 
 
 class TripCreateNested(TripBase):
@@ -29,13 +33,16 @@ class TripUpdate(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
     location: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    notes: str | None = None
 
 
 class TripRead(TripBase):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    session_id: int
+    id: UUID
+    session_id: UUID
 
 
 @router.post("", status_code=201)
@@ -47,6 +54,9 @@ def create_trip(payload: TripCreate, db: DbSession = Depends(get_db)) -> TripRea
             start_time=payload.start_time,
             end_time=payload.end_time,
             location=payload.location,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            notes=payload.notes,
         )
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -55,14 +65,14 @@ def create_trip(payload: TripCreate, db: DbSession = Depends(get_db)) -> TripRea
 
 @router.get("")
 def list_trips(
-    session_id: int | None = None, db: DbSession = Depends(get_db)
+    session_id: UUID | None = None, db: DbSession = Depends(get_db)
 ) -> list[TripRead]:
     trips = trip_commands.list_trips(db, session_id=session_id)
     return [TripRead.model_validate(trip) for trip in trips]
 
 
 @router.get("/{trip_id}")
-def get_trip(trip_id: int, db: DbSession = Depends(get_db)) -> TripRead:
+def get_trip(trip_id: UUID, db: DbSession = Depends(get_db)) -> TripRead:
     trip = trip_commands.get_trip(db, trip_id)
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
@@ -71,7 +81,7 @@ def get_trip(trip_id: int, db: DbSession = Depends(get_db)) -> TripRead:
 
 @router.patch("/{trip_id}")
 def update_trip(
-    trip_id: int, payload: TripUpdate, db: DbSession = Depends(get_db)
+    trip_id: UUID, payload: TripUpdate, db: DbSession = Depends(get_db)
 ) -> TripRead:
     trip = trip_commands.update_trip(
         db,
@@ -79,6 +89,9 @@ def update_trip(
         start_time=payload.start_time,
         end_time=payload.end_time,
         location=payload.location,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        notes=payload.notes,
     )
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
@@ -86,7 +99,7 @@ def update_trip(
 
 
 @router.delete("/{trip_id}", status_code=204)
-def delete_trip(trip_id: int, db: DbSession = Depends(get_db)) -> None:
+def delete_trip(trip_id: UUID, db: DbSession = Depends(get_db)) -> None:
     deleted = trip_commands.delete_trip(db, trip_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Trip not found")

@@ -6,6 +6,8 @@
     - Models define SQL alchemy models.
     - Commands define operations on models.
     - API endpoints define the API routing logic. 
+- Use a flat API structure without nested routes.
+- Use uuid7 for all ids.
 
 # Frontend
 - Use strict type checking.

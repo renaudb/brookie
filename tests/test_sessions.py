@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 
@@ -14,6 +16,27 @@ def test_create_session_without_trips(client: TestClient) -> None:
     body = response.json()
     assert body["location"] == "Trailhead"
     assert body["trips"] == []
+    assert body["latitude"] is None
+    assert body["notes"] is None
+
+
+def test_create_session_with_latitude_longitude_notes(client: TestClient) -> None:
+    response = client.post(
+        "/sessions",
+        json={
+            "start_time": "2024-01-01T08:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
+            "location": "Trailhead",
+            "latitude": 45.5,
+            "longitude": -73.6,
+            "notes": "Sunny day",
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["latitude"] == 45.5
+    assert body["longitude"] == -73.6
+    assert body["notes"] == "Sunny day"
 
 
 def test_create_session_with_nested_trips(client: TestClient) -> None:
@@ -59,7 +82,7 @@ def test_list_sessions(client: TestClient) -> None:
 
 
 def test_get_session_not_found(client: TestClient) -> None:
-    response = client.get("/sessions/999")
+    response = client.get(f"/sessions/{uuid4()}")
     assert response.status_code == 404
 
 
