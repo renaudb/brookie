@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as DbSession
 
+from brookie.api.sessions import SessionRead
 from brookie.commands import trips as trip_commands
-from brookie.commands.trips import SessionNotFoundError
 from brookie.commands.utils import IncompleteCoordinatesError
 from brookie.db import get_db
 
@@ -22,10 +22,6 @@ class TripBase(BaseModel):
     notes: str | None = None
 
 
-class TripCreate(TripBase):
-    session_id: UUID
-
-
 class TripUpdate(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -39,15 +35,14 @@ class TripRead(TripBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    session_id: UUID
+    sessions: list[SessionRead] = []
 
 
 @router.post("", status_code=201)
-def create_trip(payload: TripCreate, db: DbSession = Depends(get_db)) -> TripRead:
+def create_trip(payload: TripBase, db: DbSession = Depends(get_db)) -> TripRead:
     try:
         trip = trip_commands.create_trip(
             db,
-            session_id=payload.session_id,
             start_time=payload.start_time,
             end_time=payload.end_time,
             location=payload.location,
@@ -55,18 +50,14 @@ def create_trip(payload: TripCreate, db: DbSession = Depends(get_db)) -> TripRea
             longitude=payload.longitude,
             notes=payload.notes,
         )
-    except SessionNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except IncompleteCoordinatesError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TripRead.model_validate(trip)
 
 
 @router.get("")
-def list_trips(
-    session_id: UUID | None = None, db: DbSession = Depends(get_db)
-) -> list[TripRead]:
-    trips = trip_commands.list_trips(db, session_id=session_id)
+def list_trips(db: DbSession = Depends(get_db)) -> list[TripRead]:
+    trips = trip_commands.list_trips(db)
     return [TripRead.model_validate(trip) for trip in trips]
 
 

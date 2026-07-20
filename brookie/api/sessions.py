@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as DbSession
 
-from brookie.api.trips import TripRead
 from brookie.commands import sessions as session_commands
+from brookie.commands.sessions import TripNotFoundError
 from brookie.commands.utils import IncompleteCoordinatesError
 from brookie.db import get_db
 
@@ -22,6 +22,10 @@ class SessionBase(BaseModel):
     notes: str | None = None
 
 
+class SessionCreate(SessionBase):
+    trip_id: UUID
+
+
 class SessionUpdate(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -35,16 +39,17 @@ class SessionRead(SessionBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    trips: list[TripRead] = []
+    trip_id: UUID
 
 
 @router.post("", status_code=201)
 def create_session(
-    payload: SessionBase, db: DbSession = Depends(get_db)
+    payload: SessionCreate, db: DbSession = Depends(get_db)
 ) -> SessionRead:
     try:
         session = session_commands.create_session(
             db,
+            trip_id=payload.trip_id,
             start_time=payload.start_time,
             end_time=payload.end_time,
             location=payload.location,
@@ -52,14 +57,18 @@ def create_session(
             longitude=payload.longitude,
             notes=payload.notes,
         )
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except IncompleteCoordinatesError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SessionRead.model_validate(session)
 
 
 @router.get("")
-def list_sessions(db: DbSession = Depends(get_db)) -> list[SessionRead]:
-    sessions = session_commands.list_sessions(db)
+def list_sessions(
+    trip_id: UUID | None = None, db: DbSession = Depends(get_db)
+) -> list[SessionRead]:
+    sessions = session_commands.list_sessions(db, trip_id=trip_id)
     return [SessionRead.model_validate(session) for session in sessions]
 
 
