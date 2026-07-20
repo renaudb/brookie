@@ -2,175 +2,126 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-MISSING_UUID = str(uuid4())
 
-
-def _create_session(client: TestClient) -> str:
+def test_create_trip_without_sessions(client: TestClient) -> None:
     response = client.post(
-        "/sessions",
+        "/trips",
         json={
             "start_time": "2024-01-01T08:00:00+00:00",
             "end_time": "2024-01-01T09:00:00+00:00",
             "location": "Trailhead",
         },
     )
-    session_id: str = response.json()["id"]
-    return session_id
+    assert response.status_code == 201
+    body = response.json()
+    assert body["location"] == "Trailhead"
+    assert body["sessions"] == []
+    assert body["latitude"] is None
+    assert body["notes"] is None
 
 
-def test_create_trip_for_existing_session(client: TestClient) -> None:
-    session_id = _create_session(client)
-
+def test_create_trip_with_latitude_longitude_notes(client: TestClient) -> None:
     response = client.post(
         "/trips",
         json={
-            "session_id": session_id,
             "start_time": "2024-01-01T08:00:00+00:00",
             "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Leg 1",
+            "location": "Trailhead",
+            "latitude": 45.5,
+            "longitude": -73.6,
+            "notes": "Sunny day",
         },
     )
     assert response.status_code == 201
     body = response.json()
-    assert body["session_id"] == session_id
-    assert body["location"] == "Leg 1"
-
-
-def test_create_trip_missing_session_returns_404(client: TestClient) -> None:
-    response = client.post(
-        "/trips",
-        json={
-            "session_id": MISSING_UUID,
-            "start_time": "2024-01-01T08:00:00+00:00",
-            "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Leg 1",
-        },
-    )
-    assert response.status_code == 404
-
-
-def test_list_trips_filtered_by_session(client: TestClient) -> None:
-    session_id = _create_session(client)
-    other_session_id = _create_session(client)
-
-    client.post(
-        "/trips",
-        json={
-            "session_id": session_id,
-            "start_time": "2024-01-01T08:00:00+00:00",
-            "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Leg 1",
-        },
-    )
-    client.post(
-        "/trips",
-        json={
-            "session_id": other_session_id,
-            "start_time": "2024-01-01T08:00:00+00:00",
-            "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Other leg",
-        },
-    )
-
-    response = client.get("/trips", params={"session_id": session_id})
-    assert response.status_code == 200
-    trips = response.json()
-    assert len(trips) == 1
-    assert trips[0]["location"] == "Leg 1"
-
-    assert len(client.get("/trips").json()) == 2
-
-
-def test_get_trip_not_found(client: TestClient) -> None:
-    assert client.get(f"/trips/{MISSING_UUID}").status_code == 404
-
-
-def test_update_trip(client: TestClient) -> None:
-    session_id = _create_session(client)
-    trip = client.post(
-        "/trips",
-        json={
-            "session_id": session_id,
-            "start_time": "2024-01-01T08:00:00+00:00",
-            "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Leg 1",
-        },
-    ).json()
-
-    response = client.patch(f"/trips/{trip['id']}", json={"location": "Updated leg"})
-    assert response.status_code == 200
-    assert response.json()["location"] == "Updated leg"
+    assert body["latitude"] == 45.5
+    assert body["longitude"] == -73.6
+    assert body["notes"] == "Sunny day"
 
 
 def test_create_trip_rejects_partial_coordinates(client: TestClient) -> None:
-    session_id = _create_session(client)
-
     response = client.post(
         "/trips",
         json={
-            "session_id": session_id,
             "start_time": "2024-01-01T08:00:00+00:00",
             "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Leg 1",
-            "longitude": -73.6,
+            "location": "Trailhead",
+            "latitude": 45.5,
         },
     )
     assert response.status_code == 422
+
+
+def test_list_trips(client: TestClient) -> None:
+    client.post(
+        "/trips",
+        json={
+            "start_time": "2024-01-01T08:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
+            "location": "Trailhead",
+        },
+    )
+    response = client.get("/trips")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_get_trip_not_found(client: TestClient) -> None:
+    response = client.get(f"/trips/{uuid4()}")
+    assert response.status_code == 404
+
+
+def test_update_trip(client: TestClient) -> None:
+    created = client.post(
+        "/trips",
+        json={
+            "start_time": "2024-01-01T08:00:00+00:00",
+            "end_time": "2024-01-01T09:00:00+00:00",
+            "location": "Trailhead",
+        },
+    ).json()
+
+    response = client.patch(f"/trips/{created['id']}", json={"location": "Summit"})
+    assert response.status_code == 200
+    assert response.json()["location"] == "Summit"
+    assert response.json()["start_time"] == created["start_time"]
 
 
 def test_update_trip_rejects_partial_coordinates(client: TestClient) -> None:
-    session_id = _create_session(client)
-    trip = client.post(
+    created = client.post(
         "/trips",
         json={
-            "session_id": session_id,
             "start_time": "2024-01-01T08:00:00+00:00",
             "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Leg 1",
+            "location": "Trailhead",
         },
     ).json()
 
-    response = client.patch(f"/trips/{trip['id']}", json={"latitude": 45.5})
+    response = client.patch(f"/trips/{created['id']}", json={"longitude": -73.6})
     assert response.status_code == 422
 
 
-def test_update_trip_latitude_longitude_notes(client: TestClient) -> None:
-    session_id = _create_session(client)
-    trip = client.post(
+def test_delete_trip_cascades_sessions(client: TestClient) -> None:
+    created = client.post(
         "/trips",
         json={
-            "session_id": session_id,
             "start_time": "2024-01-01T08:00:00+00:00",
-            "end_time": "2024-01-01T09:00:00+00:00",
-            "location": "Leg 1",
+            "end_time": "2024-01-01T10:00:00+00:00",
+            "location": "Trailhead",
         },
     ).json()
-    assert trip["latitude"] is None
-    assert trip["longitude"] is None
-    assert trip["notes"] is None
-
-    response = client.patch(
-        f"/trips/{trip['id']}",
-        json={"latitude": 45.5, "longitude": -73.6, "notes": "Rained a lot"},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["latitude"] == 45.5
-    assert body["longitude"] == -73.6
-    assert body["notes"] == "Rained a lot"
-
-
-def test_delete_trip(client: TestClient) -> None:
-    session_id = _create_session(client)
-    trip = client.post(
-        "/trips",
+    session = client.post(
+        "/sessions",
         json={
-            "session_id": session_id,
+            "trip_id": created["id"],
             "start_time": "2024-01-01T08:00:00+00:00",
             "end_time": "2024-01-01T09:00:00+00:00",
             "location": "Leg 1",
         },
     ).json()
 
-    assert client.delete(f"/trips/{trip['id']}").status_code == 204
-    assert client.get(f"/trips/{trip['id']}").status_code == 404
+    delete_response = client.delete(f"/trips/{created['id']}")
+    assert delete_response.status_code == 204
+
+    assert client.get(f"/trips/{created['id']}").status_code == 404
+    assert client.get(f"/sessions/{session['id']}").status_code == 404

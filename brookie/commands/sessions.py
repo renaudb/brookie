@@ -7,11 +7,19 @@ from sqlalchemy.orm import Session as DbSession
 
 from brookie.commands.utils import check_coordinates
 from brookie.models.session import Session
+from brookie.models.trip import Trip
+
+
+class TripNotFoundError(Exception):
+    def __init__(self, trip_id: UUID) -> None:
+        self.trip_id = trip_id
+        super().__init__(f"Trip {trip_id} not found")
 
 
 def create_session(
     db: DbSession,
     *,
+    trip_id: UUID,
     start_time: datetime,
     end_time: datetime,
     location: str,
@@ -19,9 +27,13 @@ def create_session(
     longitude: float | None = None,
     notes: str | None = None,
 ) -> Session:
+    trip = db.get(Trip, trip_id)
+    if trip is None:
+        raise TripNotFoundError(trip_id)
     check_coordinates(latitude, longitude)
 
     session = Session(
+        trip_id=trip_id,
         start_time=start_time,
         end_time=end_time,
         location=location,
@@ -39,8 +51,11 @@ def get_session(db: DbSession, session_id: UUID) -> Session | None:
     return db.get(Session, session_id)
 
 
-def list_sessions(db: DbSession) -> Sequence[Session]:
-    return db.execute(select(Session)).scalars().all()
+def list_sessions(db: DbSession, *, trip_id: UUID | None = None) -> Sequence[Session]:
+    stmt = select(Session)
+    if trip_id is not None:
+        stmt = stmt.where(Session.trip_id == trip_id)
+    return db.execute(stmt).scalars().all()
 
 
 def update_session(
